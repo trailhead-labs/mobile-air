@@ -110,6 +110,11 @@ class ReleaseBuildBundleTest extends TestCase
         // Runtime dirs are re-added as empty entries after cleanup strips them.
         $this->assertNotFalse($zip->statName('storage/framework/views/'));
 
+        // The provider registers these as view paths, so view:cache on the
+        // device throws if the bundle ships without them (#322).
+        $this->assertNotFalse($zip->statName('vendor/nativephp/mobile/resources/views/'));
+        $this->assertNotFalse($zip->statName('vendor/nativephp/mobile/resources/jump/views/'));
+
         $zip->close();
     }
 

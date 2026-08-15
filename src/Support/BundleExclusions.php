@@ -63,6 +63,12 @@ class BundleExclusions
         'storage/framework/cache',
         'storage/framework/sessions',
         'storage/framework/views',
+        // The service provider registers these two as view paths, and
+        // view:cache walks every registered path with a Finder that
+        // throws on a missing directory. VENDOR_PATHS strips their
+        // parent, so they ride along as empty directories.
+        'vendor/nativephp/mobile/resources/views',
+        'vendor/nativephp/mobile/resources/jump/views',
     ];
 
     /** Non-runtime patterns matched only inside vendor packages. */

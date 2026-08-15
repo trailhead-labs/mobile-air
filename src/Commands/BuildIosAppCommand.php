@@ -13,6 +13,7 @@ use Native\Mobile\Concerns\InstallsSplashScreen;
 use Native\Mobile\Concerns\ValidatesAppConfig;
 use Native\Mobile\Edge\NativeRouter;
 use Native\Mobile\Plugins\Compilers\IOSPluginCompiler;
+use Native\Mobile\Support\BundleExclusions;
 use Native\Mobile\Plugins\PluginHookRunner;
 use Native\Mobile\Plugins\PluginRegistry;
 use Native\Mobile\Plugins\PluginSecretsValidator;
@@ -891,6 +892,18 @@ class BuildIosAppCommand extends Command
 
             throw new \Exception('Failed to create ZIP file: '.($error ?: 'exit code '.$result->exitCode()));
         }
+
+        // The cleanup pass stripped these and the excludes above would drop
+        // them again, so they are appended as empty entries afterwards —
+        // the same guarantee the Android packer's addEmptyDir() gives.
+        foreach (BundleExclusions::REQUIRED_DIRECTORIES as $dir) {
+            File::ensureDirectoryExists($this->appPath.'/'.$dir);
+        }
+        $dirArgs = implode(' ', array_map(
+            fn ($d) => escapeshellarg($d.'/'),
+            BundleExclusions::REQUIRED_DIRECTORIES
+        ));
+        Process::run("cd {$escapedAppPath} && zip -q {$escapedZipPath} {$dirArgs}");
 
         $this->createBundledVersionFile($zipPath);
 
