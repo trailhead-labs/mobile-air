@@ -67,8 +67,31 @@ class BundleFileManager
 
         // Put back what the exclusions removed but Laravel still needs to
         // boot, since composer install runs package:discover in here.
+        self::ensureRequiredDirectories($destination);
+    }
+
+    /**
+     * Recreate the required directories on disk after an exclusion or
+     * cleanup pass has stripped them from the copied tree.
+     */
+    public static function ensureRequiredDirectories(string $root): void
+    {
         foreach (BundleExclusions::REQUIRED_DIRECTORIES as $directory) {
-            File::ensureDirectoryExists($destination.'/'.$directory);
+            File::ensureDirectoryExists($root.'/'.$directory);
+        }
+    }
+
+    /**
+     * Guarantee every required directory lands in the archive as an entry,
+     * since the cleanup pass and the zip-level excludes both strip
+     * some of them from the tree before it is packed.
+     */
+    public static function addRequiredDirectoryEntries(\ZipArchive $zip): void
+    {
+        foreach (BundleExclusions::REQUIRED_DIRECTORIES as $directory) {
+            if (! $zip->statName($directory)) {
+                $zip->addEmptyDir($directory);
+            }
         }
     }
 

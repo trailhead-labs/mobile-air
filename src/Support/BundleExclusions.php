@@ -51,22 +51,25 @@ class BundleExclusions
     ];
 
     /**
-     * Working directories recreated after the exclusions above have run.
+     * Directories that must exist wherever the bundle lands, recreated on
+     * disk after the exclusions run and guaranteed as empty entries in
+     * the archive every packer produces.
      *
      * Their contents are excluded on purpose, being compiled output and one
      * machine's sessions, but the directories themselves are not optional:
-     * composer install runs package:discover in the copied tree, and that
-     * boots Laravel.
+     * composer install boots Laravel through package:discover, and on the
+     * device view:cache walks every registered view path at cold boot.
      */
     public const REQUIRED_DIRECTORIES = [
         'bootstrap/cache',
         'storage/framework/cache',
         'storage/framework/sessions',
         'storage/framework/views',
-        // The service provider registers these two as view paths, and
-        // view:cache walks every registered path with a Finder that
-        // throws on a missing directory. VENDOR_PATHS strips their
-        // parent, so they ride along as empty directories.
+        // Spatie's hasViews() and the jump loadViewsFrom() register these
+        // as view paths, and view:cache walks every registered path
+        // with a Finder that throws on a missing directory. The
+        // VENDOR_PATHS strip takes their parent, so they
+        // ride along here as empty directories.
         'vendor/nativephp/mobile/resources/views',
         'vendor/nativephp/mobile/resources/jump/views',
     ];

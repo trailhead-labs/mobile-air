@@ -380,12 +380,15 @@ trait PreparesBuild
                 exit(1);
             }
 
-            // Pre-create the runtime dirs Laravel needs at boot so they land in
-            // the archive — 7-Zip stores empty dirs matched by "$source\*",
-            // mirroring the addEmptyDir() guarantee of the ZipArchive branch
-            foreach (BundleExclusions::REQUIRED_DIRECTORIES as $dir) {
-                File::ensureDirectoryExists($source.DIRECTORY_SEPARATOR.str_replace('/', '\\', $dir));
-            }
+            // Pre-create the runtime dirs Laravel needs at boot so they land
+            // in the archive: 7-Zip stores empty dirs matched by "$source\*",
+            // mirroring the addEmptyDir() guarantee of the ZipArchive branch.
+            BundleFileManager::ensureRequiredDirectories($source);
+
+            $winDirs = array_map(
+                fn ($dir) => str_replace('/', '\\', $dir),
+                BundleExclusions::REQUIRED_DIRECTORIES
+            );
 
             // Mirror the exclusions applied by addDirectoryToZip() on macOS/Linux.
             // The BundleFileManager excludes remain the first line of defense, but
@@ -406,12 +409,12 @@ trait PreparesBuild
                 '-x!vendor\\endroid',
                 '-x!vendor\\nativephp\\mobile\\resources',
                 '-x!vendor\\nativephp\\mobile\\vendor',
-                // Keep the runtime dirs themselves but drop their cached contents
-                '-x!bootstrap\\cache\\*',
-                '-x!storage\\framework\\cache\\*',
-                '-x!storage\\framework\\sessions\\*',
-                '-x!storage\\framework\\views\\*',
             ];
+
+            // Keep the runtime dirs themselves but drop their cached contents
+            foreach ($winDirs as $winDir) {
+                $patterns[] = '-x!'.$winDir.'\\*';
+            }
 
             // Honor the configured exclusions for parity with the unix branch
             // (entries containing * pass through as 7-Zip wildcards)
@@ -429,6 +432,25 @@ trait PreparesBuild
                 exit(1);
             }
 
+            // The root-anchored resources exclusion above swallows the
+            // required dirs nested beneath it, and no include pattern
+            // reaches back down. A second pass appends the entries,
+            // with content excludes keeping the runtime dirs
+            // empty, mirroring addEmptyDir() below.
+            $appendArgs = [];
+            foreach ($winDirs as $winDir) {
+                $appendArgs[] = '"'.$winDir.'"';
+                $appendArgs[] = '"-x!'.$winDir.'\\*"';
+            }
+
+            $appendCmd = "cd /d \"$source\" && \"$sevenZip\" a -tzip \"$destination\" ".implode(' ', $appendArgs);
+            exec($appendCmd, $output, $code);
+
+            if ($code !== 0) {
+                \Laravel\Prompts\error("7-Zip failed appending required directories with exit code $code");
+                exit(1);
+            }
+
             return;
         }
 
@@ -443,11 +465,7 @@ trait PreparesBuild
 
         // The cleanup pass strips these before the archive is built, so they
         // are re-added as empty entries to match the copy's carve-out.
-        foreach (BundleExclusions::REQUIRED_DIRECTORIES as $dir) {
-            if (! $zip->statName($dir)) {
-                $zip->addEmptyDir($dir);
-            }
-        }
+        BundleFileManager::addRequiredDirectoryEntries($zip);
 
         $closeResult = $zip->close();
         if (! $closeResult) {
